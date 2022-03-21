@@ -20,7 +20,7 @@ public class Echo {
         String url = in.nextLine();
         System.out.println("Enter message to be echoed ");
         String msg = in.nextLine();
-        System.out.println("Enter Method [POST]");
+        System.out.println("Enter Method (POST, GET, PUT, PATCH, DELETE, HEAD, CONNECT, OPTIONS, TRACE) [POST]");
         String method = in.nextLine();
         if (method == "") {
         	method = "POST";
@@ -29,26 +29,54 @@ public class Echo {
         in.close();
         connect(url, msg, method);
     }
+    
+    /**
+     * Checks the method given by the user is one of the methods listed on the screen
+     * @param  method A HTTP method
+     * @return Whether the method is valid or not
+     */
+    static boolean checkMethod(String method) {
+        if (!AllowedMethods.contains(method.toUpperCase())) {  // Check for allowed HTTP methods
+        	log.severe("Unrecognised method " + method);
+        	return false;
+        }
+        return true;
+    }
+    
+    /**
+     * Helper function to build a request given a url, a message and the method
+     * @param url    Url to where the request will go
+     * @param msg    A text given by the user
+     * @param method A valid HTTP method for the request
+     * @return A built request with the given Url, message and method
+     */
+    static HttpRequest buildRequest(String url, String msg, String method) {
+        log.info("Building " + method + " request");
+        var request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "text/plain")
+                .method(method.toUpperCase(), HttpRequest.BodyPublishers.ofString(msg)) // Set method given by user
+                .build();
+    	return request;
+    }
 
 
     static void connect(String url,String msg, String method) throws Exception{
         log = Logger.getLogger("com.variacode.echo");
         log.setLevel(Level.ALL);
-        if (!AllowedMethods.contains(method.toUpperCase())) {  // Check for allowed HTTP methods
-        	log.severe("Unrecognised method " + method);
-        	return;
-        }
 
+        log.info("Validating Method");
+        if (!checkMethod(method)) {
+        	throw new Exception("Method not allowed");
+        }
+        log.info(method + " is valid");
         try {
-	        var request = HttpRequest.newBuilder()
-	                .uri(URI.create(url))
-	                .header("Content-Type", "text/plain")
-	                .method(method.toUpperCase(), HttpRequest.BodyPublishers.ofString(msg)) // Set method given by user
-	                .build();
+        	var request = buildRequest(url, msg, method);
 	
 	        ExecutorService executor = Executors.newSingleThreadExecutor();
 	        var client = HttpClient.newBuilder().executor(executor).build();
-	
+
+	        log.info("Connecting to " + url);
 	        var responseFuture = client.sendAsync(request, HttpResponse.BodyHandlers.ofString());
 	
 	        responseFuture.thenApply(res -> {
@@ -67,10 +95,13 @@ public class Echo {
 	    	executor.shutdownNow();
         } catch (IllegalArgumentException ex) { // catch IllegalArgumentException thrown by the HttpClient for wrong urls
         	log.severe("Illegal url: " + url);
+        	throw ex;
         } catch (NullPointerException ex) { // catch NullPointerException thrown by the HttpClient for null urls
         	log.severe("Null url");
-        } catch (Exception ex) { // catch any other expection that the server could throw
+        	throw ex;
+        } catch (Exception ex) { // catch any other exception that the server could throw
         	log.severe("Connection error to " + url);
+        	throw ex;
         }
     }
 }
